@@ -84,9 +84,65 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-
-
-
+/* ===================================
+   MOBILE SCROLLING FIX
+   =================================== */
+@media (max-width: 767px) {
+    /* Fix the main mobile sidebar container to allow proper scrolling */
+    .nasa-in-mobile .columns.nasa-top-sidebar .nasa-top-sidebar-off-canvas {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        overflow-y: auto !important; /* Force scrolling */
+        padding: 15px 20px;
+        direction: ltr; /* Fix direction for proper scrolling */
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    
+    /* Ensure the close button header doesn't interfere with scrolling */
+    .nasa-in-mobile .columns.nasa-top-sidebar .nasa-close-sidebar-wrap {
+        position: relative; /* Not sticky to avoid scroll issues */
+        z-index: 10;
+        background: white;
+        border-bottom: 1px solid #eee;
+        flex-shrink: 0; /* Don't shrink */
+    }
+    
+    /* Make sure widget content can scroll properly */
+    .nasa-in-mobile .columns.nasa-top-sidebar .nasa-widget-wrap {
+        display: block !important;
+        margin-bottom: 20px;
+    }
+    
+    /* Ensure color filter items are properly spaced and visible */
+    .nasa-in-mobile .nasa-variation-filters {
+        padding: 10px 0;
+    }
+    
+    .nasa-in-mobile .nasa-variation-filters li {
+        margin-bottom: 12px !important;
+        padding: 8px 5px !important;
+        clear: both;
+    }
+    
+    /* Fix color text visibility */
+    .nasa-in-mobile .nasa-text-variation-color {
+        display: inline-block;
+        vertical-align: middle;
+        font-size: 14px;
+        margin-left: 8px;
+        line-height: 1.4;
+    }
+    
+    /* Ensure the sidebar has proper height */
+    .nasa-in-mobile .columns.nasa-top-sidebar {
+        height: 100vh;
+        overflow: hidden; /* Prevent outer scroll */
+    }
+}
 /* Part 1 - Base Styles and Utilities */
 .nasa-relative { position: relative; }
 .nasa-bold { font-weight: 600; }
@@ -240,8 +296,6 @@
     top: 7px;
     left: 10px;
 }
-
-
 
 .nasa-variation-filters a {
   display: inline-block;
