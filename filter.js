@@ -16,6 +16,13 @@ class NasaFilterSystem {
         this.shop_load = false;
         this.shop_load_more = false;
         this._scroll_to_top = true;
+        
+        // Add protection limits
+        this.maxFiltersPerType = 5; // Max 5 colors, 5 sizes, etc.
+        this.maxTotalFilters = 8;   // Max 8 total filter values
+        this.requestDelay = 300;    // Delay between requests
+        this.lastRequestTime = 0;
+        this.blockedCombinations = new Set(); // Track blocked combinations
     }
 
     init() {
@@ -141,7 +148,7 @@ initializeComponents() {
     }
     
     
-     // â–¼ ADD CLEAR BUTTON TO SIDEBAR (Mobile) â–¼
+     // ▼ ADD CLEAR BUTTON TO SIDEBAR (Mobile) ▼
     const clearBtnMobile = this.topSidebar.querySelector('.nasa-clear-filters-mobile');
     if (!clearBtnMobile && this.topSidebar) {
         const clearWrap = document.createElement('div');
@@ -568,6 +575,13 @@ setupEventListeners() {
         if (filterLink) {
             e.preventDefault();
             e.stopPropagation();
+            
+            // Add click validation
+            if (!this.validateFilterClick(filterLink)) {
+                console.log('Filter click blocked');
+                return;
+            }
+            
             if (filterLink.href) this.handleFilterClick(filterLink.href);
         }
 
@@ -647,6 +661,35 @@ setupEventListeners() {
     // Mobile filter setup
     this.setupMobileFilters();
 }
+
+    validateFilterClick(filterLink) {
+        // Prevent rapid clicking
+        const now = Date.now();
+        if (now - this.lastRequestTime < this.requestDelay) {
+            return false;
+        }
+        
+        // Check if link looks suspicious
+        const href = filterLink.href || '';
+        if (href.length > 500) { // Very long URLs are suspicious
+            return false;
+        }
+        
+        // Check for bot-like behavior
+        if (this.detectBotBehavior()) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    detectBotBehavior() {
+        // Simple bot detection
+        const userAgent = navigator.userAgent.toLowerCase();
+        const botPatterns = ['bot', 'crawler', 'spider', 'scraper'];
+        
+        return botPatterns.some(pattern => userAgent.includes(pattern));
+    }
 
 
 
@@ -733,6 +776,19 @@ setupEventListeners() {
     }
 
     async handleFilterClick(url) {
+    // 1. Validate URL BEFORE processing
+    if (!this.validateFilterUrl(url)) {
+        console.log('Filter URL blocked - invalid combination');
+        return;
+    }
+    
+    // 2. Check if this combination is known to be empty
+    const urlKey = this.getUrlKey(url);
+    if (this.blockedCombinations && this.blockedCombinations.has(urlKey)) {
+        console.log('Filter combination blocked - no products');
+        return;
+    }
+    
     document.body.classList.add('nasa-loading');
     
     try {
@@ -742,8 +798,23 @@ setupEventListeners() {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         
-        // Update products
+        // Check if products exist BEFORE updating anything
         const products = doc.querySelector('.products');
+        const noProductsMessage = doc.querySelector('.woocommerce-info, .nasa-archive-no-result, .woocommerce-no-products-found');
+        
+        // If no products found, don't update URL or history
+        if (!products || products.children.length === 0 || noProductsMessage) {
+            console.log('No products found - not updating URL');
+            
+            // Remember this combination is empty
+            if (!this.blockedCombinations) this.blockedCombinations = new Set();
+            this.blockedCombinations.add(urlKey);
+            
+            // Don't update anything, just return
+            return;
+        }
+        
+        // Update products
         if (products) {
             document.querySelector('.products').innerHTML = products.innerHTML;
         }
@@ -770,7 +841,8 @@ setupEventListeners() {
         }
 
         // Update URL without page reload
-        if (window.history && window.history.pushState) {
+        // ONLY update URL if we actually have products
+        if (window.history && window.history.pushState && products && products.children.length > 0) {
             window.history.pushState(null, '', url);
         }
         // Auto-close mobile sidebar after selection
@@ -787,6 +859,62 @@ setupEventListeners() {
         document.body.classList.remove('nasa-loading');
     }
 }
+
+    // Add URL validation method
+    validateFilterUrl(url) {
+        try {
+            const urlObj = new URL(url);
+            const params = new URLSearchParams(urlObj.search);
+            
+            let totalFilters = 0;
+            const filterTypes = ['filter_colour', 'filter_size', 'filter_brand'];
+            
+            for (const filterType of filterTypes) {
+                const filterValue = params.get(filterType);
+                if (filterValue) {
+                    const values = filterValue.split(',').filter(v => v.trim());
+                    
+                    // Check individual filter type limit (max 5 per type)
+                    if (values.length > 5) {
+                        return false;
+                    }
+                    
+                    totalFilters += values.length;
+                }
+            }
+            
+            // Check total filter limit (max 8 total)
+            if (totalFilters > 8) {
+                return false;
+            }
+            
+            return true;
+            
+        } catch (error) {
+            return false;
+        }
+    }
+    
+    // Get normalized URL key for tracking
+    getUrlKey(url) {
+        try {
+            const urlObj = new URL(url);
+            const params = new URLSearchParams(urlObj.search);
+            
+            const filters = [];
+            ['filter_colour', 'filter_size', 'filter_brand'].forEach(type => {
+                const value = params.get(type);
+                if (value) {
+                    const sorted = value.split(',').sort().join(',');
+                    filters.push(`${type}=${sorted}`);
+                }
+            });
+            
+            return urlObj.pathname + '?' + filters.join('&');
+        } catch {
+            return url;
+        }
+    }
 
     resetFilters() {
     // Remove active classes from filter elements
